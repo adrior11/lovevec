@@ -16,4 +16,4 @@ files["spec/?.lua"] = {
   -- globals = { stub = { read = true } },
 }
 
-ignore = {}
+files[".luacheckrc"].ignore = {}

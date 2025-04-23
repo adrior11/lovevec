@@ -72,7 +72,7 @@ setmetatable(Vec, {
 ---@param x? number X component (default = 0)
 ---@param y? number Y component (default = 0)
 ---@return Vec
-function Vec.new(x, y) -- WARN: unused argument self
+function Vec.new(x, y)
   if Vec._DEBUG then
     if x ~= nil and type(x) ~= "number" then
       error("x must be a number", 2)
@@ -88,7 +88,7 @@ end
 ---@param r number radius (non-negative)
 ---@param a number angle in radians
 ---@return Vec
-function Vec.from_polar(r, a) -- WARN: unused argument self
+function Vec.from_polar(r, a)
   if Vec._DEBUG then
     if type(r) ~= "number" or type(a) ~= "number" then
       error("from_polar expects two numbers (r, a)", 2)
