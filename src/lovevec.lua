@@ -204,18 +204,29 @@ function Vec:rotate(rad, pivot)
   end
   pivot = pivot or Vec.new()
   local s, c = math.sin(rad), math.cos(rad)
-  local t = self - pivot -- translated
-  local rotated = Vec.new(t.x * c - t.y * s, -t.x * s + t.y * c)
-  return rotated + pivot
+  local tx, ty = self.x - pivot.x, self.y - pivot.y
+  return Vec.new(tx * c - ty * s + pivot.x, -tx * s + ty * c + pivot.y)
 end
 
 ---Rotate this Vec clock-wise in-place around pivot (default origin) by radians
 ---@param rad number
 ---@param pivot? Vec
 ---@return self
-function Vec:rotate_mut(rad, pivot) -- NOTE: this still allocates a temp vec of rotated
-  local v = self:rotate(rad, pivot)
-  self.x, self.y = v.x, v.y
+function Vec:rotate_mut(rad, pivot)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    if type(rad) ~= "number" then
+      error("rotate_mut expects a number for angle", 2)
+    end
+    if pivot ~= nil then
+      assert_vec(pivot, "pivot")
+    end
+  end
+  pivot = pivot or Vec.new()
+  local s, c = math.sin(rad), math.cos(rad)
+  local tx, ty = self.x - pivot.x, self.y - pivot.y
+  self.x = tx * c - ty * s + pivot.x
+  self.y = -tx * s + ty * c + pivot.y
   return self
 end
 
