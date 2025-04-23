@@ -5,6 +5,10 @@ globals = {
   Vec = { read = true },
 }
 
+exclude_files = {
+  ".luarocks/**",
+}
+
 files["src/?.lua"] = {
   std = "+lua54+luajit",
   unused_args = false,
