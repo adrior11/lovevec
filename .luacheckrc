@@ -7,6 +7,7 @@ globals = {
 
 exclude_files = {
   ".luarocks/**",
+  ".lua/**",
 }
 
 files["src/?.lua"] = {
