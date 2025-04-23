@@ -59,6 +59,20 @@ describe("Vec", function()
   end)
 
   describe("normalization and scaling", function()
+    it("normalize returns new normalized vector", function()
+      local v = Vec(3, 4)
+      local w = v:normalize()
+      assert.is_true(w:equals(Vec(0.6, 0.8)))
+      assert.is_true(v:equals(Vec(3, 4)))
+    end)
+
+    it("normalize returns a zero vector when self has zero length", function()
+      local v = Vec(0, 0)
+      local z = v:normalize()
+      assert.is_true(z:equals(Vec(0, 0)))
+      assert.is_false(rawequal(v, z))
+    end)
+
     it("normalize_mut scales to unit length", function()
       local v = Vec(3, 4):clone()
       v:normalize_mut()
@@ -218,11 +232,23 @@ describe("Vec", function()
       end, "from_polar expects two numbers (r, a)")
     end)
 
-    it("clone/unpack/len2/length/normalize_mut all assert on bad self", function()
-      for _, fn in ipairs({ Vec.clone, Vec.unpack, Vec.len2, Vec.length, Vec.normalize_mut }) do
-        assert.has_error(function()
-          fn({})
-        end, "self must be a Vec, got table")
+    describe("all methods guard against self", function()
+      local cases = {
+        { "clone", Vec.clone },
+        { "unpack", Vec.unpack },
+        { "len2", Vec.len2 },
+        { "length", Vec.length },
+        { "normalize", Vec.normalize },
+        { "normalize_mut", Vec.normalize_mut },
+      }
+
+      for _, case in ipairs(cases) do
+        local name, fn = case[1], case[2]
+        it(("%s() should error when self is not a Vec"):format(name), function()
+          assert.has_error(function()
+            fn({})
+          end, "self must be a Vec, got table")
+        end)
       end
     end)
 

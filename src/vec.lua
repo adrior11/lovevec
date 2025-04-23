@@ -133,6 +133,19 @@ function Vec:length()
   return math.sqrt(self:len2())
 end
 
+---Return normalized copy
+---@return Vec
+function Vec:normalize()
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+  end
+  local len = self:length()
+  if len < EPS then
+    return Vec.new()
+  end
+  return Vec.new(self.x / len, self.y / len)
+end
+
 ---Normalize in-place (no-op if near zero)
 ---@return self
 function Vec:normalize_mut()
