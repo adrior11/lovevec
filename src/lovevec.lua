@@ -1,5 +1,5 @@
 --[[
-Vec - 2D Vector Library (Lua)
+lovevec - 2D Vector Library (Lua)
 
 A lightweight module providing 2D vector creation, arithmetic, geometric operations,
 and optional runtime diagnostics (type checking in debug mode).
@@ -12,7 +12,7 @@ local Vec = {}
 Vec.__index = Vec
 
 -- Module metadata
-Vec._VERSION = "0.0.1"
+Vec._VERSION = "0.0.2"
 Vec._DESCRIPTION = "2D Lua vector library with arithmetic, geometry, and debug checks"
 Vec._URL = "https://github.com/adrior11/lovevec"
 Vec._LICENSE = [[
@@ -213,7 +213,7 @@ end
 ---@param rad number
 ---@param pivot? Vec
 ---@return self
-function Vec:rotate_mut(rad, pivot)
+function Vec:rotate_mut(rad, pivot) -- NOTE: this still allocates a temp vec of rotated
   local v = self:rotate(rad, pivot)
   self.x, self.y = v.x, v.y
   return self

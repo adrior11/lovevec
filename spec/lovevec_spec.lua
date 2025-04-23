@@ -1,5 +1,5 @@
 ---@diagnostic disable: missing-fields, param-type-mismatch
-local Vec = require("src.vec")
+local Vec = require("src.lovevec")
 local assert = require("luassert")
 
 describe("Vec", function()
