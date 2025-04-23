@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  
+# least-privilege token for StyLua cache download
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: "Lua ${{ matrix.lua }}"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        lua: [ "5.4", "5.3", "luajit" ]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Lua
+      uses: leafo/gh-actions-lua@v11
+      with:
+        luaVersion: ${{ matrix.lua }}
+
+    - name: Set up LuaRocks
+      uses: leafo/gh-actions-luarocks@v4
+
+    - name: Install toolchain rocks
+      run: |
+        luarocks install busted
+        luarocks install luacheck  # stylua comes via the action below
+
+    - name: StyLua (format check)
+      uses: JohnnyMorganz/stylua-action@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}   # default ephemeral token
+        args: --check .
+
+    - name: Run Luacheck (linting)
+      run: luacheck .
+
+    - name: Run Busted (tests)
+      run: busted -o utfTerminal --verbose
