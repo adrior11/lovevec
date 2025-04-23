@@ -1,4 +1,4 @@
-stds = { "lua51", "luajit" }
+std = "+lua54+luajit"
 
 globals = {
   love = { read = true },
@@ -6,14 +6,13 @@ globals = {
 }
 
 files["src/?.lua"] = {
-  std = "+lua51+luajit",
+  std = "+lua54+luajit",
   unused_args = false,
-  max_line_length = 110,
+  max_line_length = 120,
 }
 
 files["spec/?.lua"] = {
-  std = "+busted",
-  -- globals = { stub = { read = true } },
+  std = "+lua54+luajit+busted",
 }
 
-files[".luacheckrc"].ignore = {}
+ignore = {}
