@@ -48,14 +48,25 @@ describe("Vec", function()
   end)
 
   describe("length calculations", function()
-    it("len2 returns squared length", function()
+    it("length_manhattan returns manhattan length", function()
       local v = Vec(2, 3)
-      assert.are.equal(13, v:len2())
+      assert.are.equal(5, v:length_manhattan())
+    end)
+
+    it("length_squared returns squared length", function()
+      local v = Vec(2, 3)
+      assert.are.equal(13, v:length_squared())
     end)
 
     it("length returns magnitude", function()
       local v = Vec(3, 4)
       assert.are.equal(5, v:length())
+    end)
+
+    it("distance_manhattan returns correct manhattan distance", function()
+      local v1 = Vec(1, 2)
+      local v2 = Vec(2, 5)
+      assert.are.equal(4, v1:distance_manhattan(v2))
     end)
 
     it("distance returns correct Euclidean distance", function()
@@ -69,35 +80,33 @@ describe("Vec", function()
     it("normalize returns new normalized vector", function()
       local v = Vec(3, 4)
       local w = v:normalize()
-      assert.is_true(w:equals(Vec(0.6, 0.8)))
-      assert.is_true(v:equals(Vec(3, 4)))
+      assert.are.equal(w, Vec(0.6, 0.8))
+      assert.are.equal(v, Vec(3, 4))
     end)
 
     it("normalize returns a zero vector when self has zero length", function()
       local v = Vec(0, 0)
       local z = v:normalize()
-      assert.is_true(z:equals(Vec(0, 0)))
+      assert.are.equal(z, Vec(0, 0))
       assert.is_false(rawequal(v, z))
     end)
 
     it("normalize_mut scales to unit length", function()
       local v = Vec(3, 4):clone()
       v:normalize_mut()
-      assert.is_true(v:equals(Vec(0.6, 0.8)))
+      assert.are.equal(v, Vec(0.6, 0.8))
     end)
 
     it("scale returns new scaled vector", function()
       local v = Vec(1, 2)
       local s = v:scale(3)
-      assert.are.equal(3, s.x)
-      assert.are.equal(6, s.y)
+      assert.are.equal(s, Vec(3, 6))
     end)
 
     it("scale_mut scales vector in-place", function()
       local v = Vec(2, 3)
       v:scale_mut(2)
-      assert.are.equal(4, v.x)
-      assert.are.equal(6, v.y)
+      assert.are.equal(v, Vec(4, 6))
     end)
   end)
 
@@ -105,7 +114,7 @@ describe("Vec", function()
     it("rotate rotates clockwise around origin", function()
       local v = Vec(1, 0)
       local rotated = v:rotate(math.pi / 2)
-      assert.is_true(rotated:equals(Vec(0, -1)))
+      assert.are.equal(rotated, Vec(0, -1))
     end)
 
     it("rotate around a pivot", function()
@@ -119,6 +128,36 @@ describe("Vec", function()
       local v = Vec(0, 1)
       v:rotate_mut(math.pi)
       assert.is_true(v:equals(Vec(0, -1)))
+    end)
+  end)
+
+  describe("reflect", function()
+    it("reflect returns correct reflection", function()
+      local v = Vec(1, 2)
+      local normal = Vec(0, 1)
+      local reflected = v:reflect(normal)
+      assert.are.equal(reflected, Vec(1, -2))
+    end)
+
+    it("reflect_mut modifies in-place", function()
+      local v = Vec(1, 2)
+      local normal = Vec(0, 1)
+      v:reflect_mut(normal)
+      assert.are.equal(v, Vec(1, -2))
+    end)
+
+    it("reflect with zero vector returns original", function()
+      local v = Vec(1, 2)
+      local normal = Vec(0, 0)
+      local reflected = v:reflect(normal)
+      assert.are.equal(reflected, v)
+    end)
+
+    it("reflect_mut with zero vector returns original", function()
+      local v = Vec(1, 2)
+      local normal = Vec(0, 0)
+      v:reflect_mut(normal)
+      assert.are.equal(v, Vec(1, 2))
     end)
   end)
 
@@ -214,131 +253,83 @@ describe("Vec", function()
       Vec.enable_debug(false)
     end)
 
-    it("errors when creating with non-numeric x", function()
-      assert.has_error(function()
-        Vec.new("a", 0)
-      end, "x must be a number")
-    end)
+    describe("construction", function()
+      it("errors when creating with non-numeric x", function()
+        assert.has_error(function()
+          Vec.new("a", 0)
+        end, "x must be a number")
+      end)
 
-    it("errors when creating with non-numeric y", function()
-      assert.has_error(function()
-        Vec.new(0, "b")
-      end, "y must be a number")
-    end)
-
-    it("errors when scaling with non-number", function()
-      local v = Vec(1, 1)
-      assert.has_error(function()
-        v:scale("s")
-      end, "scale expects a number")
-      assert.has_error(function()
-        v:scale_mut("s")
-      end, "scale_mut expects a number")
-    end)
-
-    it("errors when rotating with non-number angle", function()
-      local v = Vec(1, 1)
-      assert.has_error(function()
-        v:rotate("r")
-      end, "rotate expects a number for angle")
-      assert.has_error(function()
-        v:rotate_mut("r")
-      end, "rotate_mut expects a number for angle")
-    end)
-
-    it("errors on invalid multiplication", function()
-      local a, b = Vec(1, 1), Vec(2, 2)
-      assert.has_error(function()
-        return a * b
-      end, "Multiplication with Vec: one operand must be a number")
-    end)
-
-    it("errors on invalid division", function()
-      local a, b = Vec(1, 1), Vec(2, 2)
-      assert.has_error(function()
-        return a / b
-      end, "Division with Vec: divisor must be a number")
-    end)
-
-    it("from_polar errors when r or a are not numbers", function()
-      assert.has_error(function()
-        Vec.from_polar("r", 1)
-      end, "from_polar expects two numbers (r, a)")
-      assert.has_error(function()
-        Vec.from_polar(1, "a")
-      end, "from_polar expects two numbers (r, a)")
-    end)
-
-    describe("all methods guard against self", function()
-      local cases = {
-        { "clone", Vec.clone },
-        { "unpack", Vec.unpack },
-        { "len2", Vec.len2 },
-        { "length", Vec.length },
-        { "normalize", Vec.normalize },
-        { "normalize_mut", Vec.normalize_mut },
-      }
-
-      for _, case in ipairs(cases) do
-        local name, fn = case[1], case[2]
-        it(("%s() should error when self is not a Vec"):format(name), function()
-          assert.has_error(function()
-            fn({})
-          end, "self must be a Vec, got table")
-        end)
-      end
-    end)
-
-    it("scale_mut errors on bad self before checking scalar", function()
-      assert.has_error(function()
-        Vec.scale_mut({}, 10)
-      end, "self must be a Vec, got table")
-    end)
-
-    it("rotate errors on bad pivot", function()
-      local v = Vec(1, 1)
-      assert.has_error(function()
-        v:rotate(0, {})
-      end, "pivot must be a Vec, got table")
-      assert.has_error(function()
-        v:rotate_mut(0, {})
+      it("errors when creating with non-numeric y", function()
+        assert.has_error(function()
+          Vec.new(0, "b")
+        end, "y must be a number")
       end)
     end)
 
-    it("dot errors on bad self or bad other", function()
-      local good = Vec(0, 0)
-      assert.has_error(function()
-        Vec.dot({}, good)
-      end, "self must be a Vec, got table")
-      assert.has_error(function()
-        good:dot({})
-      end, "other must be a Vec, got table")
+    describe("operator metamethods", function()
+      it("errors on invalid multiplication", function()
+        local a, b = Vec(1, 1), Vec(2, 2)
+        assert.has_error(function()
+          return a * b
+        end, "Multiplication with Vec: one operand must be a number")
+      end)
+
+      it("errors on invalid division", function()
+        local a, b = Vec(1, 1), Vec(2, 2)
+        assert.has_error(function()
+          return a / b
+        end, "Division with Vec: divisor must be a number")
+      end)
     end)
 
-    it("distance errors on bad self", function()
-      assert.has_error(function()
-        Vec.distance({}, Vec())
-      end, "self must be a Vec, got table")
-    end)
+    describe("methods with arg-type guard", function()
+      local cases = {
+        { "new", { "a", 0 }, "x must be a number" },
+        { "new", { 0, "b" }, "y must be a number" },
+        { "from_polar", { "r", 1 }, "from_polar expects two numbers (r, a)" },
+        { "from_polar", { 1, "r" }, "from_polar expects two numbers (r, a)" },
+        { "clone", { {} }, "self must be a Vec, got table" },
+        { "unpack", { {} }, "self must be a Vec, got table" },
+        { "length_manhattan", { {} }, "self must be a Vec, got table" },
+        { "length_squared", { {} }, "self must be a Vec, got table" },
+        { "length", { {} }, "self must be a Vec, got table" },
+        { "normalize", { {} }, "self must be a Vec, got table" },
+        { "normalize_mut", { {} }, "self must be a Vec, got table" },
+        { "scale", { Vec(), "s" }, "scale expects a number" },
+        { "scale", { {}, 1 }, "self must be a Vec, got table" },
+        { "scale_mut", { Vec(), "s" }, "scale_mut expects a number" },
+        { "scale_mut", { {}, 1 }, "self must be a Vec, got table" },
+        { "rotate", { Vec(), "r" }, "rotate expects a number for angle" },
+        { "rotate", { {}, 0 }, "self must be a Vec, got table" },
+        { "rotate", { Vec(), 0, {} }, "pivot must be a Vec, got table" },
+        { "rotate_mut", { Vec(), "r" }, "rotate_mut expects a number for angle" },
+        { "rotate_mut", { {}, 0 }, "self must be a Vec, got table" },
+        { "rotate_mut", { Vec(), 0, {} }, "pivot must be a Vec, got table" },
+        { "reflect", { {}, Vec() }, "self must be a Vec, got table" },
+        { "reflect", { Vec(), {} }, "normal must be a Vec, got table" },
+        { "reflect_mut", { {}, Vec() }, "self must be a Vec, got table" },
+        { "reflect_mut", { Vec(), {} }, "normal must be a Vec, got table" },
+        { "dot", { {}, Vec() }, "self must be a Vec, got table" },
+        { "dot", { Vec(), {} }, "other must be a Vec, got table" },
+        { "distance_manhattan", { {}, Vec() }, "self must be a Vec, got table" },
+        { "distance_manhattan", { Vec(), {} }, "other must be a Vec, got table" },
+        { "distance", { {}, Vec() }, "self must be a Vec, got table" },
+        { "distance", { Vec(), {} }, "other must be a Vec, got table" },
+        { "angle", { {}, Vec() }, "self must be a Vec, got table" },
+        { "angle", { Vec(), {} }, "other must be a Vec, got table" },
+        { "equals", { {}, Vec() }, "self must be a Vec, got table" },
+        { "equals", { Vec(), {} }, "other must be a Vec, got table" },
+      }
 
-    it("angle errors on bad self", function()
-      local good = Vec(1, 1)
-      assert.has_error(function()
-        Vec.angle({}, good)
-      end, "self must be a Vec, got table")
-      assert.has_error(function()
-        good.angle({})
-      end, "self must be a Vec, got table")
-    end)
-
-    it("equals errors on bad self or other", function()
-      local good = Vec(0, 0)
-      assert.has_error(function()
-        Vec.equals({}, good)
-      end, "self must be a Vec, got table")
-      assert.has_error(function()
-        good:equals({})
-      end, "other must be a Vec, got table")
+      for _, case in ipairs(cases) do
+        local method, args, expected = table.unpack(case)
+        it(("%s() errors on bad args"):format(method), function()
+          assert.has_error(function()
+            Vec[method](table.unpack(args))
+          end, expected)
+        end)
+      end
     end)
   end)
 end)
