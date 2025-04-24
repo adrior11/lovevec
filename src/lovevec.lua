@@ -12,7 +12,8 @@ local Vec = {}
 Vec.__index = Vec
 
 -- Module metadata
-Vec._VERSION = "0.0.3"
+Vec._NAME = "lovevec"
+Vec._VERSION = "0.0.4"
 Vec._DESCRIPTION = "2D Lua vector library with arithmetic, geometry, and debug checks"
 Vec._URL = "https://github.com/adrior11/lovevec"
 Vec._LICENSE = [[
@@ -85,7 +86,7 @@ function Vec.new(x, y)
 end
 
 ---Construct a Vec from polar coordinates in clock-wise order
----@param r number radius (non-negative)
+---@param r number radius ()
 ---@param a number angle in radians
 ---@return Vec
 function Vec.from_polar(r, a)
@@ -260,6 +261,24 @@ function Vec:distance(o)
     assert_vec(self, "self")
   end
   return (self - o):length()
+end
+
+---Return the (unsigned) angle between this Vec and another Vec, in radians
+---@param o Vec
+---@return number
+function Vec:angle(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  local len1 = self:length()
+  local len2 = o:length()
+  if len1 < EPS or len2 < EPS then
+    return 0
+  end
+  local cos_a = self:dot(o) / (len1 * len2)
+  cos_a = math.max(-1, math.min(1, cos_a))
+  return math.acos(cos_a)
 end
 
 ---Approximate equality
