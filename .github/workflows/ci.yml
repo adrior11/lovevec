@@ -37,8 +37,9 @@ jobs:
     - name: Install toolchain rocks
       run: |
         luarocks install busted
-        luarocks install luacheck  # stylua comes via the action below
-
+        luarocks install luacheck  
+        
+    # stylua comes via the action below
     - name: StyLua (format check)
       uses: JohnnyMorganz/stylua-action@v4
       with:
