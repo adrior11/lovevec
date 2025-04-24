@@ -12,7 +12,7 @@ local Vec = {}
 Vec.__index = Vec
 
 -- Module metadata
-Vec._VERSION = "0.0.2"
+Vec._VERSION = "0.0.3"
 Vec._DESCRIPTION = "2D Lua vector library with arithmetic, geometry, and debug checks"
 Vec._URL = "https://github.com/adrior11/lovevec"
 Vec._LICENSE = [[
@@ -84,7 +84,7 @@ function Vec.new(x, y)
   return setmetatable({ x = x or 0, y = y or 0 }, Vec)
 end
 
----Construct a Vec from polar coordinates
+---Construct a Vec from polar coordinates in clock-wise order
 ---@param r number radius (non-negative)
 ---@param a number angle in radians
 ---@return Vec
@@ -95,6 +95,17 @@ function Vec.from_polar(r, a)
     end
   end
   return Vec(r * math.cos(a), r * math.sin(a))
+end
+
+---Creates a random Vec with a uniform distribution over the unit circle
+---(Uses `love.math.random` if available, otherwise `math.random`)
+---@return Vec
+function Vec.random()
+  local random = math.random
+  if love and love.math then
+    random = love.math.random
+  end
+  return Vec.from_polar(1, random() * math.pi * 2)
 end
 
 ---Create a shallow copy of this Vec

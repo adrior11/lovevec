@@ -21,6 +21,13 @@ describe("Vec", function()
       local v = Vec.from_polar(r, a)
       assert.is_true(v:equals(Vec(r * math.cos(a), r * math.sin(a))))
     end)
+
+    it("random constructs unit vector", function()
+      local EPS = 1e-9
+      local v = Vec.random()
+      assert.is_true(v:length() >= 1 - EPS)
+      assert.is_true(v:length() < 1 + EPS)
+    end)
   end)
 
   describe("cloning and unpacking", function()
