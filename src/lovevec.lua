@@ -13,7 +13,7 @@ Vec.__index = Vec
 
 -- Module metadata
 Vec._NAME = "lovevec"
-Vec._VERSION = "0.0.4"
+Vec._VERSION = "0.0.5"
 Vec._DESCRIPTION = "2D Lua vector library with arithmetic, geometry, and debug checks"
 Vec._URL = "https://github.com/adrior11/lovevec"
 Vec._LICENSE = [[
@@ -127,9 +127,18 @@ function Vec:unpack()
   return self.x, self.y
 end
 
+---Manhatten length (L1 norm)
+---@return number
+function Vec:length_manhattan()
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+  end
+  return math.abs(self.x) + math.abs(self.y)
+end
+
 ---Squared length (avoids sqrt)
 ---@return number
-function Vec:len2()
+function Vec:length_squared()
   if Vec._DEBUG then
     assert_vec(self, "self")
   end
@@ -142,10 +151,10 @@ function Vec:length()
   if Vec._DEBUG then
     assert_vec(self, "self")
   end
-  return math.sqrt(self:len2())
+  return math.sqrt(self:length_squared())
 end
 
----Return normalized copy
+---Return a normalized copy of this Vec
 ---@return Vec
 function Vec:normalize()
   if Vec._DEBUG then
@@ -172,7 +181,7 @@ function Vec:normalize_mut()
   return self
 end
 
----Return scaled copy
+---Return a scaled copy of this Vec
 ---@param scalar number
 ---@return Vec
 function Vec:scale(scalar)
@@ -200,14 +209,14 @@ function Vec:scale_mut(scalar)
   return self
 end
 
----Rotate clock-wise around pivot (default origin) by radians, returning new Vec
----@param rad number
+---Return a copy of this Vec rotated in clock-wise order around pivot (default origin) by radians
+---@param theta number
 ---@param pivot? Vec
 ---@return Vec
-function Vec:rotate(rad, pivot)
+function Vec:rotate(theta, pivot)
   if Vec._DEBUG then
     assert_vec(self, "self")
-    if type(rad) ~= "number" then
+    if type(theta) ~= "number" then
       error("rotate expects a number for angle", 2)
     end
     if pivot ~= nil then
@@ -215,19 +224,19 @@ function Vec:rotate(rad, pivot)
     end
   end
   pivot = pivot or Vec.new()
-  local s, c = math.sin(rad), math.cos(rad)
+  local s, c = math.sin(theta), math.cos(theta)
   local tx, ty = self.x - pivot.x, self.y - pivot.y
   return Vec.new(tx * c - ty * s + pivot.x, -tx * s + ty * c + pivot.y)
 end
 
 ---Rotate this Vec clock-wise in-place around pivot (default origin) by radians
----@param rad number
+---@param theta number
 ---@param pivot? Vec
 ---@return self
-function Vec:rotate_mut(rad, pivot)
+function Vec:rotate_mut(theta, pivot)
   if Vec._DEBUG then
     assert_vec(self, "self")
-    if type(rad) ~= "number" then
+    if type(theta) ~= "number" then
       error("rotate_mut expects a number for angle", 2)
     end
     if pivot ~= nil then
@@ -235,10 +244,45 @@ function Vec:rotate_mut(rad, pivot)
     end
   end
   pivot = pivot or Vec.new()
-  local s, c = math.sin(rad), math.cos(rad)
+  local s, c = math.sin(theta), math.cos(theta)
   local tx, ty = self.x - pivot.x, self.y - pivot.y
   self.x = tx * c - ty * s + pivot.x
   self.y = -tx * s + ty * c + pivot.y
+  return self
+end
+
+---Return a copy of this Vec reflected against a normal Vec
+---@param n Vec
+---@return Vec
+function Vec:reflect(n)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(n, "normal")
+  end
+  local dn = self:dot(n)
+  local nn = n:length_squared()
+  if nn < EPS then
+    return self:clone()
+  end
+  local f = 2 * dn / nn
+  return Vec.new(self.x - f * n.x, self.y - f * n.y)
+end
+
+---Reflect this Vec in-place against a normal Vec
+---@param n Vec
+---@return self
+function Vec:reflect_mut(n)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(n, "normal")
+  end
+  local dn = self:dot(n)
+  local nn = n:length_squared()
+  if nn >= EPS then
+    local f = 2 * dn / nn
+    self.x = self.x - f * n.x
+    self.y = self.y - f * n.y
+  end
   return self
 end
 
@@ -253,12 +297,24 @@ function Vec:dot(o)
   return self.x * o.x + self.y * o.y
 end
 
+---Manhatten distance to another Vec
+---@param o Vec
+---@return number
+function Vec:distance_manhattan(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  return math.abs(self.x - o.x) + math.abs(self.y - o.y)
+end
+
 ---Distance to another Vec
 ---@param o Vec
 ---@return number
 function Vec:distance(o)
   if Vec._DEBUG then
     assert_vec(self, "self")
+    assert_vec(o, "other")
   end
   return (self - o):length()
 end
@@ -283,7 +339,7 @@ end
 
 ---Approximate equality
 ---@param o Vec
----@param eps? number - tolerance (default = 1e-9)
+---@param eps? number tolerance (default = 1e-9)
 ---@return boolean
 function Vec:equals(o, eps)
   if Vec._DEBUG then

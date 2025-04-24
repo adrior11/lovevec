@@ -1,7 +1,19 @@
 std = "+lua54+luajit"
 
 globals = {
-  love = { read = true },
+  love = {
+    read = true,
+    fields = {
+      math = {
+        read = true,
+        fields = {
+          random = {
+            read = true,
+          },
+        },
+      },
+    },
+  },
   Vec = { read = true },
 }
 
