@@ -4,10 +4,26 @@ globals = {
   love = {
     read = true,
     fields = {
+      graphics = {
+        read = true,
+        fields = {
+          translate = {
+            read = true,
+          },
+        },
+      },
       math = {
         read = true,
         fields = {
           random = {
+            read = true,
+          },
+        },
+      },
+      mouse = {
+        read = true,
+        fields = {
+          getPosition = {
             read = true,
           },
         },

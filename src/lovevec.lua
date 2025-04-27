@@ -678,6 +678,127 @@ function Vec:equals(o, eps)
   return math.abs(self.x - o.x) < eps and math.abs(self.y - o.y) < eps
 end
 
+-- Arithmetics ----------------------------------------------------------------
+
+---Return a copy of this Vec added to another Vec
+---@param o Vec
+---@return Vec
+function Vec:add(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  return Vec.new(self.x + o.x, self.y + o.y)
+end
+
+---Add this Vec in-place to another Vec
+---@param o Vec
+---@return self
+function Vec:add_mut(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  self.x = self.x + o.x
+  self.y = self.y + o.y
+  return self
+end
+
+---Return a copy of this Vec subtracted by another Vec
+---@param o Vec
+---@return Vec
+function Vec:sub(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  return Vec.new(self.x - o.x, self.y - o.y)
+end
+
+---Subtract this Vec in-place by another Vec
+---@param o Vec
+---@return self
+function Vec:sub_mut(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    assert_vec(o, "other")
+  end
+  self.x = self.x - o.x
+  self.y = self.y - o.y
+  return self
+end
+
+---Return a copy of this Vec multiplied by a Vec or number
+---@param o Vec | number
+---@return Vec
+function Vec:mul(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    if is_vec(o) then
+      assert_vec(o, "other")
+    elseif type(o) ~= "number" then
+      error("mul expects a Vec or a number", 2)
+    end
+  end
+  if is_vec(o) then
+    return Vec.new(self.x * o.x, self.y * o.y)
+  else
+    ---@cast o number
+    return Vec.new(self.x * o, self.y * o)
+  end
+end
+
+---Multiply this Vec in-place by a Vec or number
+---@param o Vec | number
+---@return self
+function Vec:mul_mut(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    if is_vec(o) then
+      assert_vec(o, "other")
+    elseif type(o) ~= "number" then
+      error("mul_mut expects a Vec or a number", 2)
+    end
+  end
+  if is_vec(o) then
+    self.x = self.x * o.x
+    self.y = self.y * o.y
+  else
+    ---@cast o number
+    self.x = self.x * o
+    self.y = self.y * o
+  end
+  return self
+end
+
+---Return a copy of this Vec divided by a number
+---@param o number
+---@return Vec
+function Vec:div(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    if type(o) ~= "number" then
+      error("div expects a number", 2)
+    end
+  end
+  return Vec.new(self.x / o, self.y / o)
+end
+
+---Divide this Vec in-place by a number
+---@param o number
+---@return self
+function Vec:div_mut(o)
+  if Vec._DEBUG then
+    assert_vec(self, "self")
+    if type(o) ~= "number" then
+      error("div_mut expects a number", 2)
+    end
+  end
+  self.x = self.x / o
+  self.y = self.y / o
+  return self
+end
+
 -- LÖVE bridges ---------------------------------------------------------------
 
 if love then
@@ -707,36 +828,19 @@ function Vec.__len(v)
 end
 
 function Vec.__add(a, b)
-  if not (is_vec(a) and is_vec(b)) then
-    error("Vec addition: both operands must be Vec")
-  end
-  return Vec.new(a.x + b.x, a.y + b.y)
+  return a:add(b)
 end
 
 function Vec.__sub(a, b)
-  if not (is_vec(a) and is_vec(b)) then
-    error("Vec subtraction: both operands must be Vec")
-  end
-  return Vec.new(a.x - b.x, a.y - b.y)
+  a:sub(b)
 end
 
 function Vec.__mul(a, b)
-  if is_vec(a) and is_vec(b) then
-    return Vec(a.x * b.x, a.y * b.y)
-  elseif type(a) == "number" and is_vec(b) then
-    return Vec.new(b.x * a, b.y * a)
-  elseif type(b) == "number" and is_vec(a) then
-    return Vec.new(a.x * b, a.y * b)
-  else
-    error("Vec multiplication: expected (vec,vec) or (vec,number) or (number,vec)")
-  end
+  a:mul(b)
 end
 
 function Vec.__div(a, b)
-  if is_vec(a) and type(b) == "number" then
-    return Vec.new(a.x / b, a.y / b)
-  end
-  error("Vec division: left operand must be Vec and divisor a number")
+  a:div(b)
 end
 
 function Vec.__unm(v)
