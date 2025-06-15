@@ -17,7 +17,7 @@ Vec.__index = Vec
 -- Metadata
 Vec._NAME = "lovevec"
 Vec._VERSION = "dev"
-Vec._DESCRIPTION = "2D Lua vector library with geometry, LÖVE helpers & debug checks"
+Vec._DESCRIPTION = "2D Lua vector library with geometry, LÖVE helpers and debug checks"
 Vec._URL = "https://github.com/adrior11/lovevec"
 Vec._LICENSE = [[
     MIT License
@@ -44,8 +44,7 @@ Vec._LICENSE = [[
 ]]
 
 -- Epsilon for floating-point comparisons (32-bit)
-local EPS = 1e-7
-Vec.EPS = EPS -- expose so users can tweak at runtime
+Vec.EPS = 1e-7
 
 -- Debug flag: when true, perform runtime type checks
 ---@type boolean
@@ -58,8 +57,8 @@ function Vec.enable_debug(enabled)
 end
 
 -- Cache math functions to avoid table lookups
-local cos, sin, abs, sqrt, floor, ceil, atan2 =
-  math.cos, math.sin, math.abs, math.sqrt, math.floor, math.ceil, math.atan2
+local cos, sin, abs, sqrt, floor, ceil, atan2, acos =
+  math.cos, math.sin, math.abs, math.sqrt, math.floor, math.ceil, math.atan2, math.acos
 
 -- Internal helpers ------------------------------------------------------------
 
@@ -85,14 +84,14 @@ end
 ---@param fn string
 ---@param idx? number
 local function assert_num(n, fn, idx)
-  if type(n) ~= "number" then
-    error(string.format("bad argument #%d to '%s' (number expected, got %s)", idx or 1, fn, type(n)), 3)
+  if type(n) ~= "number" or n ~= n or n == math.huge or n == -math.huge then
+    error(string.format("bad argument #%d to '%s' (finite number expected, got %s)", idx or 1, fn, tostring(n)), 3)
   end
 end
 
 ---@private
 ---@return number
-local function random()
+local function _random()
   if love and love.math and love.math.random then
     return love.math.random()
   end
@@ -104,12 +103,7 @@ end
 ---@param min number
 ---@param max number
 ---@return number
-local function clamp(v, min, max)
-  if Vec._DEBUG then
-    assert_num(v, "clamp", 1)
-    assert_num(min, "clamp", 2)
-    assert_num(max, "clamp", 3)
-  end
+local function _clamp(v, min, max)
   if min > max then
     error("min cannot be greater than max", 3)
   end
@@ -122,13 +116,20 @@ local function clamp(v, min, max)
   end
 end
 
+---@private
+---@param n number
+---@return number
+local function _round(n)
+  return n >= 0 and floor(n + 0.5) or ceil(n - 0.5)
+end
+
 -- Construction ----------------------------------------------------------------
 
 setmetatable(Vec, {
   __call = function(_, ...)
     return Vec.new(...)
   end,
-  -- __metatable = false,
+  __metatable = false,
 })
 
 ---Create a new Vec
@@ -137,23 +138,26 @@ setmetatable(Vec, {
 ---@return Vec
 function Vec.new(x, y)
   if Vec._DEBUG then
-    if x ~= nil and type(x) ~= "number" then
-      error("x must be a number", 2)
+    if x ~= nil then
+      assert_num(x, "new", 1)
     end
-    if y ~= nil and type(y) ~= "number" then
-      error("y must be a number", 2)
+    if y ~= nil then
+      assert_num(y, "new", 2)
     end
   end
   return setmetatable({ x = x or 0, y = y or 0 }, Vec)
 end
 
+---Construct a Vec from a table
+---@param t table table with {x,y} components
+---@return Vec
 function Vec.from_table(t)
   if Vec._DEBUG then
     if type(t) ~= "table" or #t < 2 then
       error("from_table expects {x,y}", 2)
     end
-    assert_num(t[1], "from_table", 2)
-    assert_num(t[2], "from_table", 3)
+    assert_num(t[1], "from_table", 1)
+    assert_num(t[2], "from_table", 2)
   end
   return Vec.new(t[1], t[2])
 end
@@ -170,7 +174,20 @@ function Vec.from_polar(r, a)
   return Vec.new(r * cos(a), r * sin(a))
 end
 
----Creates a random Vec with a uniform distribution over the unit circle
+---Construct a Vec from polar coordinates in degrees
+---@param r number radius
+---@param deg number angle in degrees
+---@return Vec
+function Vec.from_polar_deg(r, deg)
+  if Vec._DEBUG then
+    assert_num(r, "from_polar_deg", 1)
+    assert_num(deg, "from_polar_deg", 2)
+  end
+  local rad = deg * math.pi / 180
+  return Vec.from_polar(r, rad)
+end
+
+---Creates a random Vec with a uniform distribution on a circle
 ---(Uses `love.math.random` if available, otherwise `math.random`)
 ---@param r? number radius (default = 1)
 ---@return Vec
@@ -185,17 +202,39 @@ function Vec.random(r)
   if r < Vec.EPS then
     return Vec.new()
   end
-  return Vec.from_polar(r, random() * math.pi * 2)
+  return Vec.from_polar(r, _random() * math.pi * 2)
+end
+
+---Accumulate multiple Vecs into a single Vec
+---Useful for summing up multiple vectors, e.g., forces or velocities.
+---@param ... Vec
+---@return Vec
+function Vec.acc(...)
+  local args = { ... }
+  if #args == 0 then
+    return Vec.new()
+  end
+  if Vec._DEBUG then
+    for i, v in ipairs(args) do
+      assert_vec(v, "acc", i)
+    end
+  end
+  local x, y = 0, 0
+  for _, v in ipairs(args) do
+    x = x + v.x
+    y = y + v.y
+  end
+  return Vec.new(x, y)
 end
 
 -- Constants -------------------------------------------------------------------
 
-Vec.zero = setmetatable({ x = 0, y = 0 }, Vec)
-Vec.one = setmetatable({ x = 1, y = 1 }, Vec)
-Vec.left = setmetatable({ x = -1, y = 0 }, Vec)
-Vec.right = setmetatable({ x = 1, y = 0 }, Vec)
-Vec.up = setmetatable({ x = 0, y = -1 }, Vec)
-Vec.down = setmetatable({ x = 0, y = 1 }, Vec)
+Vec.zero = Vec.new(0, 0)
+Vec.one = Vec.new(1, 1)
+Vec.left = Vec.new(-1, 0)
+Vec.right = Vec.new(1, 0)
+Vec.up = Vec.new(0, 1)
+Vec.down = Vec.new(0, -1)
 
 -- Core utilities --------------------------------------------------------------
 
@@ -267,7 +306,7 @@ end
 
 ---Normalize in-place (no-op if near zero)
 ---@return self
-function Vec:normalize_mut()
+function Vec:normalize_()
   local len = self:length()
   if len >= Vec.EPS then
     self.x = self.x / len
@@ -276,49 +315,17 @@ function Vec:normalize_mut()
   return self
 end
 
----Return a scaled copy of this Vec
----@param scalar number
----@return Vec
-function Vec:scale(scalar)
-  if Vec._DEBUG then
-    if type(scalar) ~= "number" then
-      error("scale expects a number")
-    end
-    if scalar ~= scalar or scalar == math.huge or scalar == -math.huge then
-      error("scalar must be finite", 2)
-    end
-  end
-  return Vec.new(self.x * scalar, self.y * scalar)
-end
-
----Scale this Vec in-place
----@param scalar number
----@return self
-function Vec:scale_mut(scalar)
-  if Vec._DEBUG then
-    if type(scalar) ~= "number" then
-      error("scale_mut expects a number")
-    end
-    if scalar ~= scalar or scalar == math.huge or scalar == -math.huge then
-      error("scalar must be finite", 2)
-    end
-  end
-  self.x = self.x * scalar
-  self.y = self.y * scalar
-  return self
-end
-
 ---Return a perpendicular copy of this Vec
 --- (clock-wise, screen space where +y is down)
 ---@return Vec
 function Vec:perp()
-  return Vec(-self.y, self.x)
+  return Vec.new(-self.y, self.x)
 end
 
 ---Return the perpendicular of this Vec
 --- (clock-wise, screen space where +y is down)
 ---@return Vec
-function Vec:perp_mut()
+function Vec:perp_()
   local x = self.x
   self.x = -self.y
   self.y = x
@@ -337,15 +344,15 @@ function Vec:project(o)
     return Vec.new()
   end
   local s = self:dot(o) / nn
-  return Vec(o.x * s, o.y * s)
+  return Vec.new(o.x * s, o.y * s)
 end
 
 ---Project this Vec onto another Vec
 ---@param o Vec
 ---@return self
-function Vec:project_mut(o)
+function Vec:project_(o)
   if Vec._DEBUG then
-    assert_vec(o, "project_mut")
+    assert_vec(o, "project_")
   end
   local nn = o:length_squared()
   if nn < Vec.EPS then
@@ -372,9 +379,9 @@ end
 ---Reject this Vec onto another Vec
 ---@param o Vec
 ---@return self
-function Vec:reject_mut(o)
+function Vec:reject_(o)
   if Vec._DEBUG then
-    assert_vec(o, "reject_mut")
+    assert_vec(o, "reject_")
   end
   local proj = self:project(o)
   self.x = self.x - proj.x
@@ -388,23 +395,23 @@ end
 ---@return Vec
 function Vec:clamp(min, max)
   if Vec._DEBUG then
-    assert_vec(min, "clamp", 2)
-    assert_vec(max, "clamp", 3)
+    assert_vec(min, "clamp", 1)
+    assert_vec(max, "clamp", 2)
   end
-  return Vec(clamp(self.x, min.x, max.x), clamp(self.y, min.y, max.y))
+  return Vec.new(_clamp(self.x, min.x, max.x), _clamp(self.y, min.y, max.y))
 end
 
 ---Clamp this Vec in-place between two other
 ---@param min Vec
 ---@param max Vec
 ---@return self
-function Vec:clamp_mut(min, max)
+function Vec:clamp_(min, max)
   if Vec._DEBUG then
-    assert_vec(min, "clamp_mut", 2)
-    assert_vec(max, "clamp_mut", 3)
+    assert_vec(min, "clamp_", 2)
+    assert_vec(max, "clamp_", 3)
   end
-  self.x = clamp(self.x, min.x, max.x)
-  self.y = clamp(self.y, min.y, max.y)
+  self.x = _clamp(self.x, min.x, max.x)
+  self.y = _clamp(self.y, min.y, max.y)
   return self
 end
 
@@ -419,15 +426,15 @@ function Vec:limit(maxlen)
     return Vec.new()
   end
   local l = self:length()
-  return l > maxlen and self:scale(maxlen / l) or self:clone()
+  return l > maxlen and self:mul(maxlen / l) or self:clone()
 end
 
 ---Limit this Vec in-place to a maximum length
 ---@param maxlen number
 ---@return self
-function Vec:limit_mut(maxlen)
+function Vec:limit_(maxlen)
   if Vec._DEBUG then
-    assert_num(maxlen, "limit_mut")
+    assert_num(maxlen, "limit_")
   end
   if maxlen < Vec.EPS then
     self.x = 0
@@ -436,7 +443,7 @@ function Vec:limit_mut(maxlen)
   end
   local l = self:length()
   if l > maxlen then
-    self:scale_mut(maxlen / l)
+    self:mul_(maxlen / l)
   end
   return self
 end
@@ -457,10 +464,10 @@ end
 ---@param o Vec
 ---@param t number interpolation factor (0 => self, 1 => o)
 ---@return self
-function Vec:lerp_mut(o, t)
+function Vec:lerp_(o, t)
   if Vec._DEBUG then
-    assert_vec(o, "lerp_mut", 1)
-    assert_num(t, "lerp_mut", 2)
+    assert_vec(o, "lerp_", 1)
+    assert_num(t, "lerp_", 2)
   end
   self.x = self.x + (o.x - self.x) * t
   self.y = self.y + (o.y - self.y) * t
@@ -470,26 +477,26 @@ end
 ---Return a copy of this Vec rounded to the nearest integer
 ---@return Vec
 function Vec:round()
-  return Vec(floor(self.x + 0.5), floor(self.y + 0.5))
+  return Vec.new(_round(self.x), _round(self.y))
 end
 
 ---Round this Vec in-place to the nearest integer
 ---@return self
-function Vec:round_mut()
-  self.x = floor(self.x + 0.5)
-  self.y = floor(self.y + 0.5)
+function Vec:round_()
+  self.x = _round(self.x)
+  self.y = _round(self.y)
   return self
 end
 
 ---Return a copy of this Vec rounded down to the nearest integer
 ---@return Vec
 function Vec:floor()
-  return Vec(floor(self.x), floor(self.y))
+  return Vec.new(floor(self.x), floor(self.y))
 end
 
 ---Round this Vec in-place down to the nearest integer
 ---@return self
-function Vec:floor_mut()
+function Vec:floor_()
   self.x = floor(self.x)
   self.y = floor(self.y)
   return self
@@ -498,12 +505,12 @@ end
 ---Return a copy of this Vec rounded up to the nearest integer
 ---@return Vec
 function Vec:ceil()
-  return Vec(ceil(self.x), ceil(self.y))
+  return Vec.new(ceil(self.x), ceil(self.y))
 end
 
 ---Round this Vec in-place up to the nearest integer
 ---@return self
-function Vec:ceil_mut()
+function Vec:ceil_()
   self.x = ceil(self.x)
   self.y = ceil(self.y)
   return self
@@ -532,9 +539,9 @@ end
 ---@param theta number
 ---@param pivot? Vec
 ---@return self
-function Vec:rotate_mut(theta, pivot)
+function Vec:rotate_(theta, pivot)
   if Vec._DEBUG then
-    assert_num(theta, "rotate_mut", 1)
+    assert_num(theta, "rotate_", 1)
     if pivot ~= nil then
       assert_vec(pivot, "pivot", 2)
     end
@@ -566,9 +573,9 @@ end
 ---Reflect this Vec in-place against a normal Vec
 ---@param n Vec
 ---@return self
-function Vec:reflect_mut(n)
+function Vec:reflect_(n)
   if Vec._DEBUG then
-    assert_vec(n, "reflect_mut")
+    assert_vec(n, "reflect_")
   end
   local dn = self:dot(n)
   local nn = n:length_squared()
@@ -616,19 +623,46 @@ function Vec:angle_of()
   return atan2(self.y, self.x)
 end
 
+---Return the unsigned angle between this Vec and another Vec, in radians
+---@param o any
+---@return number
+function Vec:angle_to(o)
+  if Vec._DEBUG then
+    assert_vec(o, "angle_to")
+  end
+  local dot = self:dot(o)
+  local len = self:length() * o:length()
+  if len < Vec.EPS then
+    return 0
+  end
+  -- clamp to avoid NaN from rounding errors
+  local c = _clamp(dot / len, -1, 1)
+  return acos(c)
+end
+
 ---Approximate equality
 ---@param o Vec
 ---@param eps? number tolerance (default = 1e-7)
 ---@return boolean
-function Vec:equals(o, eps)
+function Vec:eq(o, eps)
   if Vec._DEBUG then
-    assert_vec(o, "equals", 1)
+    assert_vec(o, "eq", 1)
     if eps ~= nil then
-      assert_num(eps, "equals", 2)
+      assert_num(eps, "eq", 2)
     end
   end
   eps = eps or Vec.EPS
   return abs(self.x - o.x) < eps and abs(self.y - o.y) < eps
+end
+
+---Exact component-wise check
+---@param o Vec
+---@return boolean
+function Vec:strict_eq(o)
+  if Vec._DEBUG then
+    assert_vec(o, "strict_eq", 1)
+  end
+  return self.x == o.x and self.y == o.y
 end
 
 -- Arithmetics ----------------------------------------------------------------
@@ -646,9 +680,9 @@ end
 ---Add this Vec in-place to another Vec
 ---@param o Vec
 ---@return self
-function Vec:add_mut(o)
+function Vec:add_(o)
   if Vec._DEBUG then
-    assert_vec(o, "add_mut")
+    assert_vec(o, "add_")
   end
   self.x = self.x + o.x
   self.y = self.y + o.y
@@ -668,42 +702,73 @@ end
 ---Subtract this Vec in-place by another Vec
 ---@param o Vec
 ---@return self
-function Vec:sub_mut(o)
+function Vec:sub_(o)
   if Vec._DEBUG then
-    assert_vec(o, "sub_mut")
+    assert_vec(o, "sub_")
   end
   self.x = self.x - o.x
   self.y = self.y - o.y
   return self
 end
 
----Return a copy of this Vec multiplied by a Vec or number
----@param o Vec | number
+---Return a copy of this Vec multiplied by a scalar
+---@param scalar number
 ---@return Vec
-function Vec:mul(o)
-  if is_vec(o) then
-    return Vec.new(self.x * o.x, self.y * o.y)
-  elseif type(o) == "number" then
-    return Vec.new(self.x * o, self.y * o)
-  else
-    error(string.format("bad argument #1 to 'mul' (Vec or number expected, got %s)", type(o)), 2)
+function Vec:mul(scalar)
+  if Vec._DEBUG then
+    assert_num(scalar, "mul")
   end
+  return Vec.new(self.x * scalar, self.y * scalar)
 end
 
----Multiply this Vec in-place by a Vec or number
----@param o Vec | number
+---Multiply this Vec in-place by a scalar
+---@param scalar number
 ---@return self
-function Vec:mul_mut(o)
-  if is_vec(o) then
-    self.x = self.x * o.x
-    self.y = self.y * o.y
-  elseif type(o) == "number" then
-    self.x = self.x * o
-    self.y = self.y * o
-  else
-    error(string.format("bad argument #1 to 'mul_mut' (Vec or number expected, got %s)", type(o)), 2)
+function Vec:mul_(scalar)
+  if Vec._DEBUG then
+    assert_num(scalar, "mul_")
   end
+  self.x = self.x * scalar
+  self.y = self.y * scalar
   return self
+end
+
+---Return a copy of this Vec multiplied by another Vec component-wise
+---@param o Vec
+---@return Vec
+function Vec:mulv(o)
+  if Vec._DEBUG then
+    assert_vec(o, "mulv")
+  end
+  return Vec.new(self.x * o.x, self.y * o.y)
+end
+
+---Multiply this Vec in-place by another Vec component-wise
+---@param o Vec
+---@return Vec
+function Vec:mulv_(o)
+  if Vec._DEBUG then
+    assert_vec(o, "mulv_")
+  end
+  self.x = self.x * o.x
+  self.y = self.y * o.y
+  return self
+end
+
+--- Return a copy of this Vec scaled by a scalar
+---@param scalar number
+---@return Vec
+function Vec:scale(scalar)
+  -- alias for mul
+  return self:mul(scalar)
+end
+
+---Scale this Vec in-place by a scalar
+---@param scalar number
+---@return self
+function Vec:scale_(scalar)
+  -- alias for mul_
+  return self:mul_(scalar)
 end
 
 ---Return a copy of this Vec divided by a number
@@ -713,7 +778,7 @@ function Vec:div(o)
   if Vec._DEBUG then
     assert_num(o, "div")
   end
-  if abs(o) < Vec.EPS then
+  if o == 0 then
     error("division by zero", 2)
   end
   return Vec.new(self.x / o, self.y / o)
@@ -722,11 +787,11 @@ end
 ---Divide this Vec in-place by a number
 ---@param o number
 ---@return self
-function Vec:div_mut(o)
+function Vec:div_(o)
   if Vec._DEBUG then
-    assert_num(o, "div_mut")
+    assert_num(o, "div_")
   end
-  if abs(o) < Vec.EPS then
+  if o == 0 then
     error("division by zero", 2)
   end
   self.x = self.x / o
@@ -752,39 +817,81 @@ end
 
 -- Metamethods ----------------------------------------------------------------
 
+---@param v Vec
 function Vec.__tostring(v)
   return string.format("Vec(%.2f, %.2f)", v.x, v.y)
 end
 
+---@param v Vec
 function Vec.__len(v)
-  return sqrt(v.x * v.x + v.y * v.y)
+  return v:length()
 end
 
+---@param a Vec
+---@param b Vec
 function Vec.__add(a, b)
   return a:add(b)
 end
 
+---@param a Vec
+---@param b Vec
 function Vec.__sub(a, b)
   return a:sub(b)
 end
 
+---@param a Vec
+---@param b number
 function Vec.__mul(a, b)
-  if not is_vec(a) then
+  if is_vec(a) and is_vec(b) then
+    return a:mulv(b)
+  elseif is_vec(a) and type(b) == "number" then
+    if Vec._DEBUG then
+      assert_num(b, "__mul", 2)
+    end
+    return a:mul(b)
+  elseif type(a) == "number" and is_vec(b) then
+    if Vec._DEBUG then
+      assert_num(a, "__mul", 1)
+    end
+    ---@diagnostic disable-next-line: undefined-field
     return b:mul(a)
+  else
+    error("bad operands to '*' (expected (Vec,number) or (number,Vec))", 2)
   end
-  return a:mul(b)
 end
 
+---@param a Vec
+---@param b number
 function Vec.__div(a, b)
+  if Vec._DEBUG then
+    assert_num(b, "__div", 2)
+  end
   return a:div(b)
 end
 
+---@param v Vec
 function Vec.__unm(v)
   return Vec.new(-v.x, -v.y)
 end
 
+---@param a Vec
+---@param b Vec
 function Vec.__eq(a, b)
-  return a:equals(b)
+  return a:strict_eq(b)
+end
+
+do
+  -- override __index to allow Vec[1] and Vec[2] for x and y
+  local old_index = Vec.__index
+  function Vec.__index(tbl, key)
+    if key == 1 then
+      return rawget(tbl, "x")
+    end
+    if key == 2 then
+      return rawget(tbl, "y")
+    end
+    return old_index[key]
+  end
 end
 
 return Vec
