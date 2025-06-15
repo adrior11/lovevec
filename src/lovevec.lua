@@ -1,7 +1,8 @@
 --[[
-lovevec - 2D vector helpers for Lua / LÖVE
+lovevec – 2-D vector helpers for Lua / LÖVE
 --]]
 
+---@version >5.3, JIT
 ---@class Vec
 ---@field x number
 ---@field y number
@@ -43,17 +44,31 @@ Vec._LICENSE = [[
     SOFTWARE.
 ]]
 
--- Epsilon for floating-point comparisons (32-bit)
+---Epsilon for floating-point comparisons (32-bit).
+---@type number
 Vec.EPS = 1e-7
 
--- Debug flag: when true, perform runtime type checks
+---Debug flag: when true, perform runtime type checks.
 ---@type boolean
 Vec._DEBUG = false
 
----Enable or disable debug mode (argument validation)
+---Enable or disable debug mode (argument validation).
 ---@param enabled boolean
 function Vec.enable_debug(enabled)
   Vec._DEBUG = enabled and true or false
+end
+
+---Default string format for Vec instances.
+---@type string
+Vec._FMT = "Vec(%.2f, %.2f)"
+
+---Change the default `tostring` / `format`.
+---@param fmt string
+function Vec.set_format(fmt)
+  if type(fmt) ~= "string" then
+    error("set_format expects a string, got " .. type(fmt), 2)
+  end
+  Vec._FMT = fmt
 end
 
 -- Cache math functions to avoid table lookups
@@ -62,14 +77,14 @@ local cos, sin, abs, sqrt, floor, ceil, atan2, acos =
 
 -- Internal helpers ------------------------------------------------------------
 
----@private
+---@package
 ---@param v any
 ---@return boolean
 local function is_vec(v)
   return getmetatable(v) == Vec
 end
 
----@private
+---@package
 ---@param v any
 ---@param fn string
 ---@param idx? number
@@ -79,7 +94,7 @@ local function assert_vec(v, fn, idx)
   end
 end
 
----@private
+---@package
 ---@param n any
 ---@param fn string
 ---@param idx? number
@@ -89,7 +104,7 @@ local function assert_num(n, fn, idx)
   end
 end
 
----@private
+---@package
 ---@return number
 local function _random()
   if love and love.math and love.math.random then
@@ -98,7 +113,7 @@ local function _random()
   return math.random()
 end
 
----@private
+---@package
 ---@param v number
 ---@param min number
 ---@param max number
@@ -116,7 +131,7 @@ local function _clamp(v, min, max)
   end
 end
 
----@private
+---@package
 ---@param n number
 ---@return number
 local function _round(n)
@@ -132,7 +147,7 @@ setmetatable(Vec, {
   __metatable = false,
 })
 
----Create a new Vec
+---Create a new Vec.
 ---@param x? number X component (default = 0)
 ---@param y? number Y component (default = 0)
 ---@return Vec
@@ -148,21 +163,27 @@ function Vec.new(x, y)
   return setmetatable({ x = x or 0, y = y or 0 }, Vec)
 end
 
----Construct a Vec from a table
----@param t table table with {x,y} components
+---Construct a Vec from a table (either array-style or key-style).
+---If both presentations are given the named keys win.
+---@param t table {x,y} or {x = number, y = number}
 ---@return Vec
 function Vec.from_table(t)
   if Vec._DEBUG then
-    if type(t) ~= "table" or #t < 2 then
-      error("from_table expects {x,y}", 2)
+    if type(t) ~= "table" then
+      error("from_table expects a table, got " .. type(t), 2)
     end
-    assert_num(t[1], "from_table", 1)
-    assert_num(t[2], "from_table", 2)
   end
-  return Vec.new(t[1], t[2])
+  local x = t.x ~= nil and t.x or t[1]
+  local y = t.y ~= nil and t.y or t[2]
+  if Vec._DEBUG then
+    assert_num(x, "from_table", 1)
+    assert_num(y, "from_table", 2)
+  end
+  return Vec.new(x, y)
 end
 
----Construct a Vec from polar coordinates in clock-wise order
+---Construct a Vec from polar coordinates in clock-wise order.
+---(Assumes +y is down i.e., screen space in clockwise order)
 ---@param r number radius
 ---@param a number angle in radians
 ---@return Vec
@@ -174,7 +195,8 @@ function Vec.from_polar(r, a)
   return Vec.new(r * cos(a), r * sin(a))
 end
 
----Construct a Vec from polar coordinates in degrees
+---Construct a Vec from polar coordinates in degrees.
+---(Assumes +y is down i.e., screen space)
 ---@param r number radius
 ---@param deg number angle in degrees
 ---@return Vec
@@ -187,7 +209,7 @@ function Vec.from_polar_deg(r, deg)
   return Vec.from_polar(r, rad)
 end
 
----Creates a random Vec with a uniform distribution on a circle
+---Creates a random Vec with a uniform distribution on a circle.
 ---(Uses `love.math.random` if available, otherwise `math.random`)
 ---@param r? number radius (default = 1)
 ---@return Vec
@@ -205,24 +227,25 @@ function Vec.random(r)
   return Vec.from_polar(r, _random() * math.pi * 2)
 end
 
----Accumulate multiple Vecs into a single Vec
+---Accumulate multiple Vecs into a single Vec, allowing nil arguments.
 ---Useful for summing up multiple vectors, e.g., forces or velocities.
----@param ... Vec
+---@param ... Vec|nil
 ---@return Vec
 function Vec.acc(...)
-  local args = { ... }
-  if #args == 0 then
+  local n = select("#", ...)
+  if n == 0 then
     return Vec.new()
   end
-  if Vec._DEBUG then
-    for i, v in ipairs(args) do
-      assert_vec(v, "acc", i)
-    end
-  end
   local x, y = 0, 0
-  for _, v in ipairs(args) do
-    x = x + v.x
-    y = y + v.y
+  for i = 1, n do
+    local v = select(i, ...)
+    if v ~= nil then
+      if Vec._DEBUG then
+        assert_vec(v, "acc", i)
+      end
+      x = x + v.x
+      y = y + v.y
+    end
   end
   return Vec.new(x, y)
 end
@@ -238,43 +261,50 @@ Vec.down = Vec.new(0, -1)
 
 -- Core utilities --------------------------------------------------------------
 
----Create a shallow copy of this Vec
+---Return a string representation of this Vec.
+---@param fmt? string If nil, uses `Vec._FMT`.
+---@return string
+function Vec:format(fmt)
+  return string.format(fmt or Vec._FMT, self.x, self.y)
+end
+
+---Create a shallow copy of this Vec.
 ---@return Vec
 function Vec:clone()
   return Vec.new(self.x, self.y)
 end
 
----Return x and y components
+---Return x and y components.
 ---@return number, number
 function Vec:unpack()
   return self.x, self.y
 end
 
----Return a table with x and y components
+---Return a table with x and y components.
 ---@return table
 function Vec:to_table()
   return { self.x, self.y }
 end
 
----Manhattan length (L1 norm)
+---Manhattan length (L1 norm).
 ---@return number
 function Vec:length_manhattan()
   return abs(self.x) + abs(self.y)
 end
 
----Squared length (avoids sqrt)
+---Squared length.
 ---@return number
 function Vec:length_squared()
   return self.x * self.x + self.y * self.y
 end
 
----Length (magnitude)
+---Length (magnitude).
 ---@return number
 function Vec:length()
   return sqrt(self.x * self.x + self.y * self.y)
 end
 
----Dot product
+---Dot product.
 ---@param o Vec
 ---@return number
 function Vec:dot(o)
@@ -284,7 +314,7 @@ function Vec:dot(o)
   return self.x * o.x + self.y * o.y
 end
 
----Cross product (z-component)
+---Cross product (z-component).
 ---@param o Vec
 ---@return number
 function Vec:cross(o)
@@ -294,7 +324,7 @@ function Vec:cross(o)
   return self.x * o.y - self.y * o.x
 end
 
----Return a normalized copy of this Vec
+---Return a normalized copy of this Vec.
 ---@return Vec
 function Vec:normalize()
   local len = self:length()
@@ -304,7 +334,7 @@ function Vec:normalize()
   return Vec.new(self.x / len, self.y / len)
 end
 
----Normalize in-place (no-op if near zero)
+---Normalize in-place (no-op if near zero).
 ---@return self
 function Vec:normalize_()
   local len = self:length()
@@ -315,15 +345,15 @@ function Vec:normalize_()
   return self
 end
 
----Return a perpendicular copy of this Vec
---- (clock-wise, screen space where +y is down)
+---Return a perpendicular copy of this Vec.
+---(Assumes +y is down i.e., screen space in clockwise order)
 ---@return Vec
 function Vec:perp()
   return Vec.new(-self.y, self.x)
 end
 
----Return the perpendicular of this Vec
---- (clock-wise, screen space where +y is down)
+---Return the perpendicular of this Vec.
+---(Assumes +y is down i.e., screen space in clockwise order)
 ---@return Vec
 function Vec:perp_()
   local x = self.x
@@ -332,7 +362,7 @@ function Vec:perp_()
   return self
 end
 
----Return the projection of this Vec onto another Vec
+---Return the projection of this Vec onto another Vec.
 ---@param o Vec
 ---@return Vec
 function Vec:project(o)
@@ -347,7 +377,7 @@ function Vec:project(o)
   return Vec.new(o.x * s, o.y * s)
 end
 
----Project this Vec onto another Vec
+---Project this Vec onto another Vec.
 ---@param o Vec
 ---@return self
 function Vec:project_(o)
@@ -366,7 +396,7 @@ function Vec:project_(o)
   return self
 end
 
----Return the rejection of this Vec onto another Vec
+---Return the rejection of this Vec onto another Vec.
 ---@param o Vec
 ---@return Vec
 function Vec:reject(o)
@@ -376,7 +406,7 @@ function Vec:reject(o)
   return self - self:project(o)
 end
 
----Reject this Vec onto another Vec
+---Reject this Vec onto another Vec.
 ---@param o Vec
 ---@return self
 function Vec:reject_(o)
@@ -389,7 +419,7 @@ function Vec:reject_(o)
   return self
 end
 
----Clamp this Vec between two other Vecs
+---Clamp this Vec between two other Vecs.
 ---@param min Vec
 ---@param max Vec
 ---@return Vec
@@ -401,7 +431,7 @@ function Vec:clamp(min, max)
   return Vec.new(_clamp(self.x, min.x, max.x), _clamp(self.y, min.y, max.y))
 end
 
----Clamp this Vec in-place between two other
+---Clamp this Vec in-place between two other.
 ---@param min Vec
 ---@param max Vec
 ---@return self
@@ -415,7 +445,7 @@ function Vec:clamp_(min, max)
   return self
 end
 
----Limit this Vec to a maximum length
+---Limit this Vec to a maximum length.
 ---@param maxlen number
 ---@return Vec
 function Vec:limit(maxlen)
@@ -429,7 +459,7 @@ function Vec:limit(maxlen)
   return l > maxlen and self:mul(maxlen / l) or self:clone()
 end
 
----Limit this Vec in-place to a maximum length
+---Limit this Vec in-place to a maximum length.
 ---@param maxlen number
 ---@return self
 function Vec:limit_(maxlen)
@@ -448,7 +478,7 @@ function Vec:limit_(maxlen)
   return self
 end
 
----Linearly interpolate between this Vec and another Vec
+---Linearly interpolate between this Vec and another Vec.
 ---@param o Vec
 ---@param t number interpolation factor (0 => self, 1 => o)
 ---@return Vec
@@ -460,7 +490,7 @@ function Vec:lerp(o, t)
   return Vec.new(self.x + (o.x - self.x) * t, self.y + (o.y - self.y) * t)
 end
 
----Linearly interpolate this Vec in-place towards another Vec
+---Linearly interpolate this Vec in-place towards another Vec.
 ---@param o Vec
 ---@param t number interpolation factor (0 => self, 1 => o)
 ---@return self
@@ -474,13 +504,13 @@ function Vec:lerp_(o, t)
   return self
 end
 
----Return a copy of this Vec rounded to the nearest integer
+---Return a copy of this Vec rounded to the nearest integer.
 ---@return Vec
 function Vec:round()
   return Vec.new(_round(self.x), _round(self.y))
 end
 
----Round this Vec in-place to the nearest integer
+---Round this Vec in-place to the nearest integer.
 ---@return self
 function Vec:round_()
   self.x = _round(self.x)
@@ -488,13 +518,13 @@ function Vec:round_()
   return self
 end
 
----Return a copy of this Vec rounded down to the nearest integer
+---Return a copy of this Vec rounded down to the nearest integer.
 ---@return Vec
 function Vec:floor()
   return Vec.new(floor(self.x), floor(self.y))
 end
 
----Round this Vec in-place down to the nearest integer
+---Round this Vec in-place down to the nearest integer.
 ---@return self
 function Vec:floor_()
   self.x = floor(self.x)
@@ -502,13 +532,13 @@ function Vec:floor_()
   return self
 end
 
----Return a copy of this Vec rounded up to the nearest integer
+---Return a copy of this Vec rounded up to the nearest integer.
 ---@return Vec
 function Vec:ceil()
   return Vec.new(ceil(self.x), ceil(self.y))
 end
 
----Round this Vec in-place up to the nearest integer
+---Round this Vec in-place up to the nearest integer.
 ---@return self
 function Vec:ceil_()
   self.x = ceil(self.x)
@@ -516,8 +546,21 @@ function Vec:ceil_()
   return self
 end
 
----Return a copy of this Vec rotated (clock-wise, screen space where +y is down)
---- around a pivot (default origin) by radians
+---Return a copy of this Vec with swapped x and y components.
+---@return Vec
+function Vec:swap()
+  return Vec.new(self.y, self.x)
+end
+
+---Swap x and y components in-place.
+---@return self
+function Vec:swap_()
+  self.x, self.y = self.y, self.x
+  return self
+end
+
+---Return a copy of this Vec rotated around a pivot (default origin) by radians.
+---(Assumes +y is down i.e., screen space in clockwise order)
 ---@param theta number
 ---@param pivot? Vec
 ---@return Vec
@@ -534,8 +577,8 @@ function Vec:rotate(theta, pivot)
   return Vec.new(tx * c - ty * s + pivot.x, -tx * s + ty * c + pivot.y)
 end
 
----Rotate this Vec in-place (clock-wise, screen space where +y is down)
---- around pivot (default origin) by radians
+---Rotate this Vec in-place around pivot (default origin) by radians.
+---(Assumes +y is down i.e., screen space in clockwise order)
 ---@param theta number
 ---@param pivot? Vec
 ---@return self
@@ -554,7 +597,7 @@ function Vec:rotate_(theta, pivot)
   return self
 end
 
----Return a copy of this Vec reflected against a normal Vec
+---Return a copy of this Vec reflected against a normal Vec.
 ---@param n Vec
 ---@return Vec
 function Vec:reflect(n)
@@ -570,7 +613,7 @@ function Vec:reflect(n)
   return Vec.new(self.x - f * n.x, self.y - f * n.y)
 end
 
----Reflect this Vec in-place against a normal Vec
+---Reflect this Vec in-place against a normal Vec.
 ---@param n Vec
 ---@return self
 function Vec:reflect_(n)
@@ -587,7 +630,7 @@ function Vec:reflect_(n)
   return self
 end
 
----Distance to another Vec
+---Distance to another Vec.
 ---@param o Vec
 ---@return number
 function Vec:distance(o)
@@ -597,7 +640,7 @@ function Vec:distance(o)
   return (self - o):length()
 end
 
----Manhattan distance to another Vec
+---Manhattan distance to another Vec.
 ---@param o Vec
 ---@return number
 function Vec:distance_manhattan(o)
@@ -607,7 +650,7 @@ function Vec:distance_manhattan(o)
   return abs(self.x - o.x) + abs(self.y - o.y)
 end
 
----Return the angle between this Vec and another Vec, in radians
+---Return the angle between this Vec and another Vec, in radians.
 ---@param o Vec
 ---@return number
 function Vec:angle(o)
@@ -617,13 +660,13 @@ function Vec:angle(o)
   return atan2(self:cross(o), self:dot(o))
 end
 
----Return the angle of this Vec with respect to the x-axis, in radians
+---Return the angle of this Vec with respect to the x-axis, in radians.
 ---@return number
 function Vec:angle_of()
   return atan2(self.y, self.x)
 end
 
----Return the unsigned angle between this Vec and another Vec, in radians
+---Return the unsigned angle between this Vec and another Vec, in radians.
 ---@param o any
 ---@return number
 function Vec:angle_to(o)
@@ -640,7 +683,7 @@ function Vec:angle_to(o)
   return acos(c)
 end
 
----Approximate equality
+---Approximate equality.
 ---@param o Vec
 ---@param eps? number tolerance (default = 1e-7)
 ---@return boolean
@@ -655,7 +698,7 @@ function Vec:eq(o, eps)
   return abs(self.x - o.x) < eps and abs(self.y - o.y) < eps
 end
 
----Exact component-wise check
+---Exact component-wise check.
 ---@param o Vec
 ---@return boolean
 function Vec:strict_eq(o)
@@ -667,7 +710,7 @@ end
 
 -- Arithmetics ----------------------------------------------------------------
 
----Return a copy of this Vec added to another Vec
+---Return a copy of this Vec added to another Vec.
 ---@param o Vec
 ---@return Vec
 function Vec:add(o)
@@ -677,7 +720,7 @@ function Vec:add(o)
   return Vec.new(self.x + o.x, self.y + o.y)
 end
 
----Add this Vec in-place to another Vec
+---Add this Vec in-place to another Vec.
 ---@param o Vec
 ---@return self
 function Vec:add_(o)
@@ -689,7 +732,7 @@ function Vec:add_(o)
   return self
 end
 
----Return a copy of this Vec subtracted by another Vec
+---Return a copy of this Vec subtracted by another Vec.
 ---@param o Vec
 ---@return Vec
 function Vec:sub(o)
@@ -699,7 +742,7 @@ function Vec:sub(o)
   return Vec.new(self.x - o.x, self.y - o.y)
 end
 
----Subtract this Vec in-place by another Vec
+---Subtract this Vec in-place by another Vec.
 ---@param o Vec
 ---@return self
 function Vec:sub_(o)
@@ -711,7 +754,7 @@ function Vec:sub_(o)
   return self
 end
 
----Return a copy of this Vec multiplied by a scalar
+---Return a copy of this Vec multiplied by a scalar.
 ---@param scalar number
 ---@return Vec
 function Vec:mul(scalar)
@@ -721,7 +764,7 @@ function Vec:mul(scalar)
   return Vec.new(self.x * scalar, self.y * scalar)
 end
 
----Multiply this Vec in-place by a scalar
+---Multiply this Vec in-place by a scalar.
 ---@param scalar number
 ---@return self
 function Vec:mul_(scalar)
@@ -733,7 +776,7 @@ function Vec:mul_(scalar)
   return self
 end
 
----Return a copy of this Vec multiplied by another Vec component-wise
+---Return a copy of this Vec multiplied by another Vec component-wise.
 ---@param o Vec
 ---@return Vec
 function Vec:mulv(o)
@@ -743,7 +786,7 @@ function Vec:mulv(o)
   return Vec.new(self.x * o.x, self.y * o.y)
 end
 
----Multiply this Vec in-place by another Vec component-wise
+---Multiply this Vec in-place by another Vec component-wise.
 ---@param o Vec
 ---@return Vec
 function Vec:mulv_(o)
@@ -755,7 +798,7 @@ function Vec:mulv_(o)
   return self
 end
 
---- Return a copy of this Vec scaled by a scalar
+--- Return a copy of this Vec scaled by a scalar.
 ---@param scalar number
 ---@return Vec
 function Vec:scale(scalar)
@@ -763,7 +806,7 @@ function Vec:scale(scalar)
   return self:mul(scalar)
 end
 
----Scale this Vec in-place by a scalar
+---Scale this Vec in-place by a scalar.
 ---@param scalar number
 ---@return self
 function Vec:scale_(scalar)
@@ -771,7 +814,7 @@ function Vec:scale_(scalar)
   return self:mul_(scalar)
 end
 
----Return a copy of this Vec divided by a number
+---Return a copy of this Vec divided by a number.
 ---@param o number
 ---@return Vec
 function Vec:div(o)
@@ -784,7 +827,7 @@ function Vec:div(o)
   return Vec.new(self.x / o, self.y / o)
 end
 
----Divide this Vec in-place by a number
+---Divide this Vec in-place by a number.
 ---@param o number
 ---@return self
 function Vec:div_(o)
@@ -799,17 +842,36 @@ function Vec:div_(o)
   return self
 end
 
+---Return a copy of this Vec negated (multiplied by -1).
+---@return Vec
+function Vec:neg()
+  return Vec.new(-self.x, -self.y)
+end
+
+---Negate this Vec in-place (multiply by -1).
+---@return self
+function Vec:neg_()
+  self.x = -self.x
+  self.y = -self.y
+  return self
+end
+
 -- LÖVE bridges ---------------------------------------------------------------
 
 if love then
+  ---Create a Vec from the current mouse position.
+  ---@return Vec
   function Vec.from_mouse()
     return Vec(love.mouse.getPosition())
   end
 
+  ---Get the distance from this Vec to the current mouse position.
+  ---@return number
   function Vec:mouse_distance()
     return self:distance(Vec.from_mouse())
   end
 
+  ---Translate the current coordinate system relative to this Vec.
   function Vec:translate()
     love.graphics.translate(self.x, self.y)
   end
@@ -856,7 +918,7 @@ function Vec.__mul(a, b)
     ---@diagnostic disable-next-line: undefined-field
     return b:mul(a)
   else
-    error("bad operands to '*' (expected (Vec,number) or (number,Vec))", 2)
+    error("bad operands to '*' (expected (Vec,Vec), (Vec,number) or (number,Vec))", 2)
   end
 end
 
@@ -871,7 +933,7 @@ end
 
 ---@param v Vec
 function Vec.__unm(v)
-  return Vec.new(-v.x, -v.y)
+  return v:neg()
 end
 
 ---@param a Vec
@@ -880,18 +942,19 @@ function Vec.__eq(a, b)
   return a:strict_eq(b)
 end
 
-do
-  -- override __index to allow Vec[1] and Vec[2] for x and y
-  local old_index = Vec.__index
-  function Vec.__index(tbl, key)
-    if key == 1 then
-      return rawget(tbl, "x")
-    end
-    if key == 2 then
-      return rawget(tbl, "y")
-    end
-    return old_index[key]
-  end
-end
+-- NOTE: needs testing
+-- do
+--   -- override __index to allow Vec[1] and Vec[2] for x and y
+--   local old_index = Vec.__index
+--   function Vec.__index(tbl, key)
+--     if key == 1 then
+--       return rawget(tbl, "x")
+--     end
+--     if key == 2 then
+--       return rawget(tbl, "y")
+--     end
+--     return old_index[key]
+--   end
+-- end
 
 return Vec
