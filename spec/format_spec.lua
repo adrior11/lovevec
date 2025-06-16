@@ -4,12 +4,10 @@ local assert = require("luassert")
 describe("formatting", function()
   before_each(function()
     Vec.enable_debug(true)
-    -- Vec.set_format("Vec(%.1f | %.1f)")
   end)
 
   after_each(function()
     Vec.enable_debug(false)
-    -- Vec.set_format("Vec(%.2f, %.2f)")
   end)
 
   it("should use the library's default fmt in tostring", function()
