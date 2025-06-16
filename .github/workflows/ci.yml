@@ -39,11 +39,10 @@ jobs:
         luarocks install busted
         luarocks install luacheck  
         
-    # stylua comes via the action below
     - name: StyLua (format check)
       uses: JohnnyMorganz/stylua-action@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}   # default ephemeral token
+        token: ${{ secrets.GITHUB_TOKEN }}
         version: latest
         args: --check .
 
