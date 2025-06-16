@@ -2,7 +2,7 @@
 lovevec – 2-D vector helpers for Lua / LÖVE
 --]]
 
----@version >5.3, JIT
+---@version >5.1, JIT
 ---@class Vec
 ---@field x number
 ---@field y number
@@ -923,12 +923,6 @@ end
 ---@param v Vec
 function Vec.__tostring(v)
   return v:format()
-end
-
----@version >5.2
----@param v Vec
-function Vec.__len(v)
-  return v:length()
 end
 
 ---@param a Vec

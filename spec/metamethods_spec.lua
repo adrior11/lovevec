@@ -26,17 +26,6 @@ describe("Metamethods", function()
     end)
   end)
 
-  describe("len", function()
-    it("should return the vector length with #", function()
-      if _VERSION == "LUA 5.1" or jit then
-        pending("Lua 5.1/LuaJIT ignores __len on tables")
-      else
-        local v = Vec(1, 0)
-        assert.are.equal(#v, 1)
-      end
-    end)
-  end)
-
   describe("add", function()
     it("should add two Vecs using the + operator", function()
       local v1 = Vec(1, 2)
