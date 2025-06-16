@@ -6,25 +6,21 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-  
-# least-privilege token for StyLua cache download
+
 permissions:
   contents: read
   actions: read
 
 jobs:
-  build:
-    name: "Lua ${{ matrix.lua }}"
+  check:
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        lua: [ "5.4", "5.3", "luajit" ]
+        lua: ["5.4", "5.3", "5.2", "5.1", "luajit"]
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Set up Lua
       uses: leafo/gh-actions-lua@v11
@@ -37,17 +33,28 @@ jobs:
     - name: Install toolchain rocks
       run: |
         luarocks install busted
-        luarocks install luacheck  
-        
-    - name: StyLua (format check)
+        luarocks install luacheck
+        luarocks install luacov
+        luarocks install luacov-reporter-lcov
+
+    - name: StyLua (format)
       uses: JohnnyMorganz/stylua-action@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         version: latest
         args: --check .
 
-    - name: Run Luacheck (linting)
+    - name: Run Luacheck (lint)
       run: luacheck .
 
-    - name: Run Busted (tests)
-      run: busted -o utfTerminal --verbose
+    - name: Run Busted (tests with coverage)
+      run: |
+        busted -c 
+        luacov -r lcov
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        files: luacov.report.out
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true

@@ -46,7 +46,7 @@ Vec._LICENSE = [[
 
 ---Epsilon for floating-point comparisons (32-bit).
 ---@type number
-Vec.EPS = 1e-7
+Vec._EPS = 1e-7
 
 ---Debug flag: when true, perform runtime type checks.
 ---@type boolean
@@ -62,8 +62,17 @@ end
 ---@type string
 Vec._FMT = "Vec(%.2f, %.2f)"
 
----Change the default `tostring` / `format`.
----@param fmt string
+---Change the default format used by `tostring(v)` / `v:format()`.
+---@param fmt string printf-style format containing exactly two numeric slots.
+---## Example
+--[[
+```lua
+    local fmt = "Vec[%.0f;%.0f]"
+    Vec.set_format(fmt)
+    local v = Vec(1.4, 2.6)
+    print(tostring(v)) -- Output: Vec[1;3]
+```
+]]
 function Vec.set_format(fmt)
   if type(fmt) ~= "string" then
     error("set_format expects a string, got " .. type(fmt), 2)
@@ -138,7 +147,7 @@ local function _round(n)
   return n >= 0 and floor(n + 0.5) or ceil(n - 0.5)
 end
 
--- Construction ----------------------------------------------------------------
+-- Constructors ----------------------------------------------------------------
 
 setmetatable(Vec, {
   __call = function(_, ...)
@@ -165,8 +174,16 @@ end
 
 ---Construct a Vec from a table (either array-style or key-style).
 ---If both presentations are given the named keys win.
----@param t table {x,y} or {x = number, y = number}
+---@param t table {number,number} or {x = number, y = number}
 ---@return Vec
+---## Example
+--[[
+```lua
+    local v1 = Vec.from_table({ 3, 4 }) -- array-style
+    local v2 = Vec.from_table({ x = 5, y = 6 }) -- key-style
+    local v3 = Vec.from_table({ 7, y = 8 }) -- mixed style
+```
+]]
 function Vec.from_table(t)
   if Vec._DEBUG then
     if type(t) ~= "table" then
@@ -211,6 +228,9 @@ end
 
 ---Creates a random Vec with a uniform distribution on a circle.
 ---(Uses `love.math.random` if available, otherwise `math.random`)
+---
+---It utilizes its inner Vec._EPS to determine if the radius is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param r? number radius (default = 1)
 ---@return Vec
 function Vec.random(r)
@@ -221,7 +241,7 @@ function Vec.random(r)
   if r < 0 then
     error("radius must be non-negative", 2)
   end
-  if r < Vec.EPS then
+  if r < Vec._EPS then
     return Vec.new()
   end
   return Vec.from_polar(r, _random() * math.pi * 2)
@@ -231,6 +251,16 @@ end
 ---Useful for summing up multiple vectors, e.g., forces or velocities.
 ---@param ... Vec|nil
 ---@return Vec
+--- ## Example
+--[[
+```lua
+    local v1 = Vec(1, 2)
+    local v2 = nil
+    local v3 = Vec(5, 6)
+    local result = Vec.acc(v1, v2, v3)  -- result = Vec(6, 8)
+    local empty = Vec.acc()  -- empty = Vec(0, 0)
+```
+]]
 function Vec.acc(...)
   local n = select("#", ...)
   if n == 0 then
@@ -325,20 +355,26 @@ function Vec:cross(o)
 end
 
 ---Return a normalized copy of this Vec.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@return Vec
 function Vec:normalize()
   local len = self:length()
-  if len < Vec.EPS then
+  if len < Vec._EPS then
     return Vec.new()
   end
   return Vec.new(self.x / len, self.y / len)
 end
 
 ---Normalize in-place (no-op if near zero).
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@return self
 function Vec:normalize_()
   local len = self:length()
-  if len >= Vec.EPS then
+  if len >= Vec._EPS then
     self.x = self.x / len
     self.y = self.y / len
   end
@@ -363,6 +399,9 @@ function Vec:perp_()
 end
 
 ---Return the projection of this Vec onto another Vec.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param o Vec
 ---@return Vec
 function Vec:project(o)
@@ -370,7 +409,7 @@ function Vec:project(o)
     assert_vec(o, "project")
   end
   local nn = o:length_squared()
-  if nn < Vec.EPS then
+  if nn < Vec._EPS then
     return Vec.new()
   end
   local s = self:dot(o) / nn
@@ -378,6 +417,9 @@ function Vec:project(o)
 end
 
 ---Project this Vec onto another Vec.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param o Vec
 ---@return self
 function Vec:project_(o)
@@ -385,7 +427,7 @@ function Vec:project_(o)
     assert_vec(o, "project_")
   end
   local nn = o:length_squared()
-  if nn < Vec.EPS then
+  if nn < Vec._EPS then
     self.x = 0
     self.y = 0
     return self
@@ -437,8 +479,8 @@ end
 ---@return self
 function Vec:clamp_(min, max)
   if Vec._DEBUG then
-    assert_vec(min, "clamp_", 2)
-    assert_vec(max, "clamp_", 3)
+    assert_vec(min, "clamp_", 1)
+    assert_vec(max, "clamp_", 2)
   end
   self.x = _clamp(self.x, min.x, max.x)
   self.y = _clamp(self.y, min.y, max.y)
@@ -446,13 +488,16 @@ function Vec:clamp_(min, max)
 end
 
 ---Limit this Vec to a maximum length.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param maxlen number
 ---@return Vec
 function Vec:limit(maxlen)
   if Vec._DEBUG then
     assert_num(maxlen, "limit")
   end
-  if maxlen < Vec.EPS then
+  if maxlen < Vec._EPS then
     return Vec.new()
   end
   local l = self:length()
@@ -460,13 +505,16 @@ function Vec:limit(maxlen)
 end
 
 ---Limit this Vec in-place to a maximum length.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param maxlen number
 ---@return self
 function Vec:limit_(maxlen)
   if Vec._DEBUG then
     assert_num(maxlen, "limit_")
   end
-  if maxlen < Vec.EPS then
+  if maxlen < Vec._EPS then
     self.x = 0
     self.y = 0
     return self
@@ -586,7 +634,7 @@ function Vec:rotate_(theta, pivot)
   if Vec._DEBUG then
     assert_num(theta, "rotate_", 1)
     if pivot ~= nil then
-      assert_vec(pivot, "pivot", 2)
+      assert_vec(pivot, "rotate_", 2)
     end
   end
   pivot = pivot or Vec.zero
@@ -598,6 +646,9 @@ function Vec:rotate_(theta, pivot)
 end
 
 ---Return a copy of this Vec reflected against a normal Vec.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param n Vec
 ---@return Vec
 function Vec:reflect(n)
@@ -606,7 +657,7 @@ function Vec:reflect(n)
   end
   local dn = self:dot(n)
   local nn = n:length_squared()
-  if nn < Vec.EPS then
+  if nn < Vec._EPS then
     return self:clone()
   end
   local f = 2 * dn / nn
@@ -614,6 +665,9 @@ function Vec:reflect(n)
 end
 
 ---Reflect this Vec in-place against a normal Vec.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param n Vec
 ---@return self
 function Vec:reflect_(n)
@@ -622,7 +676,7 @@ function Vec:reflect_(n)
   end
   local dn = self:dot(n)
   local nn = n:length_squared()
-  if nn >= Vec.EPS then
+  if nn >= Vec._EPS then
     local f = 2 * dn / nn
     self.x = self.x - f * n.x
     self.y = self.y - f * n.y
@@ -667,6 +721,9 @@ function Vec:angle_of()
 end
 
 ---Return the unsigned angle between this Vec and another Vec, in radians.
+---
+---It utilizes its inner Vec._EPS to determine if the length is effectively zero.
+---You can adjust the precision by setting `Vec._EPS`.
 ---@param o any
 ---@return number
 function Vec:angle_to(o)
@@ -675,7 +732,7 @@ function Vec:angle_to(o)
   end
   local dot = self:dot(o)
   local len = self:length() * o:length()
-  if len < Vec.EPS then
+  if len < Vec._EPS then
     return 0
   end
   -- clamp to avoid NaN from rounding errors
@@ -694,7 +751,7 @@ function Vec:eq(o, eps)
       assert_num(eps, "eq", 2)
     end
   end
-  eps = eps or Vec.EPS
+  eps = eps or Vec._EPS
   return abs(self.x - o.x) < eps and abs(self.y - o.y) < eps
 end
 
@@ -798,22 +855,6 @@ function Vec:mulv_(o)
   return self
 end
 
---- Return a copy of this Vec scaled by a scalar.
----@param scalar number
----@return Vec
-function Vec:scale(scalar)
-  -- alias for mul
-  return self:mul(scalar)
-end
-
----Scale this Vec in-place by a scalar.
----@param scalar number
----@return self
-function Vec:scale_(scalar)
-  -- alias for mul_
-  return self:mul_(scalar)
-end
-
 ---Return a copy of this Vec divided by a number.
 ---@param o number
 ---@return Vec
@@ -881,9 +922,10 @@ end
 
 ---@param v Vec
 function Vec.__tostring(v)
-  return string.format("Vec(%.2f, %.2f)", v.x, v.y)
+  return v:format()
 end
 
+---@version >5.2
 ---@param v Vec
 function Vec.__len(v)
   return v:length()
@@ -942,19 +984,18 @@ function Vec.__eq(a, b)
   return a:strict_eq(b)
 end
 
--- NOTE: needs testing
--- do
---   -- override __index to allow Vec[1] and Vec[2] for x and y
---   local old_index = Vec.__index
---   function Vec.__index(tbl, key)
---     if key == 1 then
---       return rawget(tbl, "x")
---     end
---     if key == 2 then
---       return rawget(tbl, "y")
---     end
---     return old_index[key]
---   end
--- end
+do
+  -- override __index to allow Vec[1] and Vec[2] for x and y for convenience sugar
+  local old_index = Vec.__index
+  function Vec.__index(tbl, key)
+    if key == 1 then
+      return rawget(tbl, "x")
+    end
+    if key == 2 then
+      return rawget(tbl, "y")
+    end
+    return old_index[key]
+  end
+end
 
 return Vec

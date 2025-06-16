@@ -1,0 +1,30 @@
+local Vec = require("src.lovevec")
+local assert = require("luassert")
+
+describe("formatting", function()
+  before_each(function()
+    Vec.enable_debug(true)
+    -- Vec.set_format("Vec(%.1f | %.1f)")
+  end)
+
+  after_each(function()
+    Vec.enable_debug(false)
+    -- Vec.set_format("Vec(%.2f, %.2f)")
+  end)
+
+  it("should use the library's default fmt in tostring", function()
+    Vec.set_format("Vec[%.0f;%.0f]")
+    assert.are.equal(tostring(Vec(1.4, 2.6)), "Vec[1;3]")
+  end)
+
+  it("should accept an ad-hoc format string", function()
+    local v = Vec(3, 4)
+    assert.are.equal(v:format("<%.0f,%.0f>"), "<3,4>")
+  end)
+
+  it("should error if set_format receives a non-string", function()
+    assert.has_error(function()
+      Vec.set_format(123)
+    end, "set_format expects a string, got number")
+  end)
+end)
