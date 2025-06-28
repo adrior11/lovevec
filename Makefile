@@ -2,6 +2,10 @@ htmlreport := luacov.report.html
 reportfile := luacov.report.out
 statsfile := luacov.stats.out
 
+benches:
+	@lua bench/vec_bench.lua
+	@luajit bench/vec_bench.lua
+
 codecov:
 	@busted -c
 	@luacov -r lcov

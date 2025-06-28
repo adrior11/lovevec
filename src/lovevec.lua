@@ -212,20 +212,6 @@ function Vec.from_polar(r, a)
   return Vec.new(r * cos(a), r * sin(a))
 end
 
----Construct a Vec from polar coordinates in degrees.
----(Assumes +y is down i.e., screen space)
----@param r number radius
----@param deg number angle in degrees
----@return Vec
-function Vec.from_polar_deg(r, deg)
-  if Vec._DEBUG then
-    assert_num(r, "from_polar_deg", 1)
-    assert_num(deg, "from_polar_deg", 2)
-  end
-  local rad = deg * math.pi / 180
-  return Vec.from_polar(r, rad)
-end
-
 ---Creates a random Vec with a uniform distribution on a circle.
 ---(Uses `love.math.random` if available, otherwise `math.random`)
 ---
